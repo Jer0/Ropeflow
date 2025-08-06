@@ -66,3 +66,53 @@ html, body {
 .info-box .title {
     font-size: 1.2rem;
 }
+
+/* --- Nuevos Estilos --- */
+
+#start-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    color: white;
+    text-align: center;
+    cursor: pointer;
+    transition: opacity 0.5s ease;
+}
+
+.start-box h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.start-box p {
+    font-size: 1.2rem;
+    color: #ccc;
+}
+
+#fullscreen-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#fullscreen-btn svg {
+    width: 24px;
+    height: 24px;
+}

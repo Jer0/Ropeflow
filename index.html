@@ -3,12 +3,28 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Ropeflow Viewer</title>
     <link rel="stylesheet" href="style.css">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
     <main id="video-container"></main>
+
+    <!-- Overlay para iniciar la interacción en móviles -->
+    <div id="start-overlay">
+        <div class="start-box">
+            <h1>Ropeflow Viewer</h1>
+            <p>Toca para empezar</p>
+        </div>
+    </div>
+
+    <!-- Botón de pantalla completa -->
+    <button id="fullscreen-btn" title="Pantalla Completa">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+    </button>
+
     <script src="script.js"></script>
 </body>
 </html>
