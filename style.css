@@ -1,0 +1,68 @@
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden; /* El scroll lo controla el contenedor */
+    background-color: #000;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+#video-container {
+    height: 100vh; /* Ocupa toda la altura de la ventana */
+    width: 100vw;
+    overflow-y: scroll;
+    /* Habilita el "snap" para que el scroll se ajuste a cada video */
+    scroll-snap-type: y mandatory;
+}
+
+.video-wrapper {
+    height: 100vh;
+    width: 100%;
+    position: relative;
+    scroll-snap-align: start; /* Cada video es un punto de anclaje */
+    overflow: hidden;
+    cursor: grab;
+}
+
+.video-wrapper video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain; /* Mantiene la relación de aspecto, como en TikTok */
+    transition: transform 0.1s ease-out; /* Suaviza la transición del zoom */
+}
+
+.info-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none; /* Permite hacer clic a través del overlay */
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
+}
+
+.info-overlay.visible {
+    opacity: 1;
+}
+
+.info-box {
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 0.5rem;
+    text-align: center;
+}
+
+.info-box .number {
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.info-box .title {
+    font-size: 1.2rem;
+}
