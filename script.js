@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.serviceWorker.register('sw.js').catch(err => console.error('SW reg failed', err));
     }
 
-    // --- 2. LÓGICA DE INICIO (CON SINCRONIZACIÓN GARANTIZADA) ---
+    // --- 2. LÓGICA DE INICIO (CON SINCRONIZACIÓN A PRUEBA DE BALAS) ---
     async function initApp() {
         startOverlay.style.opacity = '0';
         setTimeout(() => startOverlay.style.display = 'none', 500);
@@ -20,11 +20,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('videos.json');
             videosData = await response.json();
             createVideoElements(videosData);
-            
-            // ¡LA SOLUCIÓN! Deferir la configuración del observador hasta que el DOM esté listo.
-            setTimeout(() => {
+
+            // ¡LA SOLUCIÓN DEFINITIVA! Esperar al siguiente frame de renderizado.
+            requestAnimationFrame(() => {
+                // Forzar la carga del primer video manualmente.
+                const firstWrapper = document.querySelector('.video-wrapper');
+                if (firstWrapper) {
+                    console.log("Cargando manualmente el primer video...");
+                    loadVideo(firstWrapper);
+                }
+                // Ahora, configurar el observador para el resto.
                 setupIntersectionObserver();
-            }, 0);
+            });
 
         } catch (error) {
             console.error('Error al cargar videos.json:', error);
@@ -32,54 +39,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     startOverlay.addEventListener('click', initApp, { once: true });
 
-    // --- 3. CREACIÓN DE ELEMENTOS (CON CONTROLES DE VELOCIDAD) ---
+    // --- 3. CREACIÓN DE ELEMENTOS (sin cambios) ---
     function createVideoElements(videos) {
         videos.forEach(videoInfo => {
             const wrapper = document.createElement('div');
             wrapper.className = 'video-wrapper';
             wrapper.dataset.src = videoInfo.src;
-
             const preloader = document.createElement('div');
             preloader.className = 'preloader';
-
             const video = document.createElement('video');
-            video.loop = true;
-            video.muted = true;
-            video.playsInline = true;
-            video.preload = 'none';
-
+            video.loop = true; video.muted = true; video.playsInline = true; video.preload = 'none';
             const playFallback = document.createElement('div');
             playFallback.className = 'play-fallback';
             playFallback.innerHTML = `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
-            playFallback.addEventListener('click', () => {
-                video.play();
-                playFallback.classList.remove('visible');
-            });
-
-            // Crear controles de velocidad
+            playFallback.addEventListener('click', () => { video.play(); playFallback.classList.remove('visible'); });
             const speedControls = document.createElement('div');
             speedControls.className = 'speed-controls';
-            const speeds = [0.5, 0.75];
-            speeds.forEach(speed => {
+            [0.5, 0.75].forEach(speed => {
                 const btn = document.createElement('button');
-                btn.className = 'speed-btn';
-                btn.textContent = `${speed}x`;
-                btn.dataset.speed = speed;
+                btn.className = 'speed-btn'; btn.textContent = `${speed}x`; btn.dataset.speed = speed;
                 speedControls.appendChild(btn);
             });
-
-            wrapper.appendChild(preloader);
-            wrapper.appendChild(video);
-            wrapper.appendChild(overlay(videoInfo));
-            wrapper.appendChild(playFallback);
-            wrapper.appendChild(speedControls); // Añadir controles al wrapper
+            wrapper.appendChild(preloader); wrapper.appendChild(video); wrapper.appendChild(overlay(videoInfo)); wrapper.appendChild(playFallback); wrapper.appendChild(speedControls);
             videoContainer.appendChild(wrapper);
-
             setupZoomAndPan(wrapper, video);
             setupSpeedControls(wrapper, video);
         });
     }
-    
     function overlay(info) {
         const el = document.createElement('div');
         el.className = 'info-overlay';
@@ -114,12 +100,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 5. OBSERVADOR (sin cambios) ---
+    // --- 5. OBSERVADOR (CON LÓGICA DE REPRODUCCIÓN MEJORADA) ---
     function setupIntersectionObserver() {
-        console.log("Configurando IntersectionObserver...");
-        const wrappers = document.querySelectorAll('.video-wrapper');
-        console.log(`Encontrados ${wrappers.length} wrappers para observar.`);
-
         const options = { threshold: 0.5 };
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(async entry => {
@@ -136,8 +118,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             playFallback.classList.add('visible');
                         }
                     };
-                    if (wrapper.classList.contains('loaded')) playVideo();
-                    else video.addEventListener('canplay', playVideo, { once: true });
+                    if (wrapper.classList.contains('loaded')) {
+                        playVideo();
+                    } else {
+                        video.addEventListener('canplay', playVideo, { once: true });
+                    }
                     wrapper.querySelector('.info-overlay').classList.add('visible');
                     setTimeout(() => wrapper.querySelector('.info-overlay').classList.remove('visible'), 3000);
                 } else {
@@ -146,23 +131,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }, options);
-        wrappers.forEach(w => observer.observe(w));
+        document.querySelectorAll('.video-wrapper').forEach(w => observer.observe(w));
     }
 
-    // --- NUEVA FUNCIÓN: Lógica de Controles de Velocidad ---
+    // --- 6. LÓGICA DE CONTROLES DE VELOCIDAD ---
     function setupSpeedControls(wrapper, video) {
         const buttons = wrapper.querySelectorAll('.speed-btn');
         buttons.forEach(button => {
             button.addEventListener('click', (e) => {
-                e.stopPropagation(); // Evitar que el clic se propague al wrapper
+                e.stopPropagation();
                 const speed = parseFloat(button.dataset.speed);
-
-                // Si el botón ya está activo, desactivarlo
                 if (button.classList.contains('active')) {
                     button.classList.remove('active');
                     video.playbackRate = 1.0;
                 } else {
-                    // Desactivar otros botones y activar este
                     buttons.forEach(btn => btn.classList.remove('active'));
                     button.classList.add('active');
                     video.playbackRate = speed;
@@ -171,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- ZOOM Y PANEO (sin cambios) ---
+    // --- 7. ZOOM Y PANEO ---
     function setupZoomAndPan(container, video) {
         let scale = 1, isPanning = false, start = { x: 0, y: 0 }, transform = { x: 0, y: 0 };
         const setTransform = () => { video.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${scale})`; };
@@ -195,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('mouseup', () => { isPanning = false; container.style.cursor = 'grab'; });
     }
 
-    // --- PANTALLA COMPLETA (sin cambios) ---
+    // --- 8. PANTALLA COMPLETA ---
     fullscreenBtn.addEventListener('click', () => {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(err => console.error(err));
