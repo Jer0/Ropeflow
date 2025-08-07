@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 1. REGISTRAR SERVICE WORKER ---
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js') // Ruta correcta para GitHub Pages
+        navigator.serviceWorker.register('sw.js')
             .then(reg => console.log('Service Worker registrado', reg))
             .catch(err => console.error('Error al registrar Service Worker', err));
     }
@@ -27,21 +27,21 @@ document.addEventListener('DOMContentLoaded', () => {
             createVideoElements(videosData);
             setupIntersectionObserver();
 
-            // **Solución para iOS**: "Desbloquear" todos los videos
             const videoElements = document.querySelectorAll('video');
+            console.log(`Intentando desbloquear ${videoElements.length} videos para iOS.`);
             videoElements.forEach(video => {
                 const promise = video.play();
                 if (promise !== undefined) {
                     promise.then(() => video.pause())
-                           .catch(e => console.warn("No se pudo pre-desbloquear un video. Esto es normal en algunas condiciones."));
+                           .catch(e => console.warn("No se pudo pre-desbloquear un video."));
                 }
             });
             
-            // Forzar la reproducción del primer video visible después del desbloqueo
             const firstVideoWrapper = videoContainer.querySelector('.video-wrapper');
             if (firstVideoWrapper) {
                 const firstVideo = firstVideoWrapper.querySelector('video');
-                firstVideo.play().catch(e => console.log("Autoplay del primer video bloqueado, el usuario debe hacer scroll."));
+                console.log("Intentando reproducir el primer video.");
+                firstVideo.play().catch(e => console.log("Autoplay del primer video bloqueado."));
             }
 
         } catch (error) {
@@ -89,19 +89,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 4. OBSERVADOR ---
+    // --- 4. OBSERVADOR MEJORADO ---
     function setupIntersectionObserver() {
         const options = { threshold: 0.5 };
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
-                if (!hasInteracted) return;
                 const video = entry.target.querySelector('video');
                 const overlay = entry.target.querySelector('.info-overlay');
+                const videoId = entry.target.dataset.videoId;
+
                 if (entry.isIntersecting) {
-                    video.play().catch(e => {});
+                    console.log(`Video ${videoId} está visible. Intentando reproducir.`);
+                    // Solo intentar reproducir si está pausado
+                    if (video.paused) {
+                        const playPromise = video.play();
+                        if (playPromise !== undefined) {
+                            playPromise.catch(error => {
+                                console.error(`Error al reproducir video ${videoId}:`, error);
+                            });
+                        }
+                    }
                     overlay.classList.add('visible');
                     setTimeout(() => overlay.classList.remove('visible'), 3000);
                 } else {
+                    // console.log(`Video ${videoId} ya no es visible. Pausando.`);
                     video.pause();
                     video.currentTime = 0;
                 }
