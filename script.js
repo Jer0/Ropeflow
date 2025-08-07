@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const startOverlay = document.getElementById('start-overlay');
     const fullscreenBtn = document.getElementById('fullscreen-btn');
     let videosData = [];
-    const videoCache = {}; // Caché en memoria para blobs de video
 
     // --- 1. REGISTRAR SERVICE WORKER ---
     if ('serviceWorker' in navigator) {
@@ -31,13 +30,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     startOverlay.addEventListener('click', initApp, { once: true });
 
-    // --- 3. CREACIÓN DE ELEMENTOS (SIN SRC) ---
+    // --- 3. CREACIÓN DE ELEMENTOS (CON BOTÓN DE PLAY FALLBACK) ---
     function createVideoElements(videos) {
         videos.forEach(videoInfo => {
             const wrapper = document.createElement('div');
             wrapper.className = 'video-wrapper';
-            wrapper.dataset.videoId = videoInfo.id;
-            wrapper.dataset.src = videoInfo.src; // Guardamos la URL original aquí
+            wrapper.dataset.src = videoInfo.src;
 
             const preloader = document.createElement('div');
             preloader.className = 'preloader';
@@ -47,11 +45,20 @@ document.addEventListener('DOMContentLoaded', () => {
             video.loop = true;
             video.muted = true;
             video.playsInline = true;
-            video.preload = 'none'; // No cargar nada al principio
-            
+            video.preload = 'none';
+
+            const playFallback = document.createElement('div');
+            playFallback.className = 'play-fallback';
+            playFallback.innerHTML = `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
+            playFallback.addEventListener('click', () => {
+                video.play();
+                playFallback.classList.remove('visible');
+            });
+
             wrapper.appendChild(preloader);
             wrapper.appendChild(video);
             wrapper.appendChild(overlay(videoInfo));
+            wrapper.appendChild(playFallback);
             videoContainer.appendChild(wrapper);
             setupZoomAndPan(wrapper, video);
         });
@@ -64,97 +71,87 @@ document.addEventListener('DOMContentLoaded', () => {
         return el;
     }
 
-    // --- 4. LÓGICA DE CARGA Y CACHÉ DE VIDEOS ---
+    // --- 4. LÓGICA DE CARGA Y CACHÉ ---
     async function loadVideo(wrapper) {
         const video = wrapper.querySelector('video');
         const src = wrapper.dataset.src;
-        if (!src || video.src) return; // Ya cargado o sin fuente
+        if (!src || video.src) return;
 
         const preloader = wrapper.querySelector('.preloader');
         const progressText = wrapper.querySelector('.progress-text');
         preloader.classList.remove('hidden');
 
         try {
-            // 1. Buscar en la caché de la Cache API
             const cache = await caches.open('video-cache');
             let response = await cache.match(src);
 
-            if (response) {
-                progressText.textContent = '100%';
-            } else {
-                // 2. Si no está, descargar con progreso
-                console.log(`Descargando video: ${src}`);
+            if (!response) {
                 const xhr = new XMLHttpRequest();
                 xhr.open('GET', src, true);
                 xhr.responseType = 'arraybuffer';
-
-                xhr.onprogress = (event) => {
-                    if (event.lengthComputable) {
-                        const percentage = Math.floor((event.loaded / event.total) * 100);
-                        progressText.textContent = `${percentage}%`;
-                    }
-                };
-
-                xhr.onload = async () => {
-                    if (xhr.status === 200) {
-                        const videoData = new Blob([xhr.response]);
-                        response = new Response(videoData, { headers: { 'Content-Type': 'video/mp4' } });
-                        await cache.put(src, response.clone());
-                        setVideoSource(video, response);
-                    } else {
-                        console.error('Error al descargar video');
-                    }
-                };
+                xhr.onprogress = e => progressText.textContent = e.lengthComputable ? `${Math.floor((e.loaded / e.total) * 100)}%` : 'Cargando';
+                
+                const xhrLoadPromise = new Promise((resolve, reject) => {
+                    xhr.onload = () => {
+                        if (xhr.status === 200) {
+                            const res = new Response(xhr.response, { headers: { 'Content-Type': 'video/mp4' } });
+                            cache.put(src, res.clone());
+                            resolve(res);
+                        } else {
+                            reject('Error descargando video');
+                        }
+                    };
+                    xhr.onerror = () => reject('Error de red');
+                });
                 xhr.send();
-                return; // Salir porque la carga es asíncrona
+                response = await xhrLoadPromise;
             }
             
-            // 3. Asignar la fuente desde la respuesta (cacheada o nueva)
-            setVideoSource(video, response);
+            const blob = await response.blob();
+            video.src = URL.createObjectURL(blob);
+            preloader.classList.add('hidden');
 
         } catch (error) {
-            console.error("Error al cargar o cachear el video:", error);
+            console.error("Error al cargar video:", error);
             preloader.classList.add('hidden');
         }
     }
 
-    async function setVideoSource(video, response) {
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        video.src = blobUrl;
-        video.parentElement.querySelector('.preloader').classList.add('hidden');
-    }
-
-    // --- 5. OBSERVADOR PARA LAZY LOADING ---
+    // --- 5. OBSERVADOR CON LÓGICA DE FALLBACK ---
     function setupIntersectionObserver() {
-        const options = { rootMargin: '200px 0px' };
+        const options = { rootMargin: '100px 0px', threshold: 0.5 };
         const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const wrapper = entry.target;
-                    loadVideo(wrapper);
-                    
-                    const next = wrapper.nextElementSibling;
-                    if (next) loadVideo(next);
-                    const prev = wrapper.previousElementSibling;
-                    if (prev) loadVideo(prev);
+            entries.forEach(async entry => {
+                const wrapper = entry.target;
+                const video = wrapper.querySelector('video');
+                const playFallback = wrapper.querySelector('.play-fallback');
 
-                    const video = wrapper.querySelector('video');
-                    if (video.paused && video.src) video.play().catch(e => {});
+                if (entry.isIntersecting) {
+                    await loadVideo(wrapper);
                     
-                    const overlay = wrapper.querySelector('.info-overlay');
-                    overlay.classList.add('visible');
-                    setTimeout(() => overlay.classList.remove('visible'), 3000);
+                    const next = wrapper.nextElementSibling; if (next) loadVideo(next);
+                    const prev = wrapper.previousElementSibling; if (prev) loadVideo(prev);
+
+                    try {
+                        await video.play();
+                        playFallback.classList.remove('visible');
+                    } catch (err) {
+                        console.warn("Autoplay bloqueado. Mostrando botón de fallback.");
+                        playFallback.classList.add('visible');
+                    }
+                    
+                    wrapper.querySelector('.info-overlay').classList.add('visible');
+                    setTimeout(() => wrapper.querySelector('.info-overlay').classList.remove('visible'), 3000);
                 } else {
-                    const video = entry.target.querySelector('video');
                     video.pause();
+                    playFallback.classList.remove('visible');
                 }
             });
         }, options);
         document.querySelectorAll('.video-wrapper').forEach(w => observer.observe(w));
     }
 
-    // --- 6. ZOOM Y PANEO (sin cambios) ---
+    // --- 6. ZOOM Y PANEO ---
     function setupZoomAndPan(container, video) {
         let scale = 1, isPanning = false, start = { x: 0, y: 0 }, transform = { x: 0, y: 0 };
         const setTransform = () => { video.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${scale})`; };
@@ -178,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('mouseup', () => { isPanning = false; container.style.cursor = 'grab'; });
     }
 
-    // --- 7. PANTALLA COMPLETA (sin cambios) ---
+    // --- 7. PANTALLA COMPLETA ---
     fullscreenBtn.addEventListener('click', () => {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(err => console.error(err));
