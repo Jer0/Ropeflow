@@ -124,18 +124,33 @@ html, body {
 .preloader {
     position: absolute;
     z-index: 20;
-    width: 60px;
-    height: 60px;
-    border: 6px solid rgba(255, 255, 255, 0.3);
-    border-top-color: #fff;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     opacity: 1;
     transition: opacity 0.3s ease;
 }
 
 .preloader.hidden {
     opacity: 0;
+    pointer-events: none; /* Evita que el preloader oculto intercepte clics */
+}
+
+.spinner {
+    width: 60px;
+    height: 60px;
+    border: 6px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.progress-text {
+    color: white;
+    margin-top: 10px;
+    font-size: 1rem;
+    font-weight: bold;
 }
 
 @keyframes spin {

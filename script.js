@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     startOverlay.addEventListener('click', initApp);
 
-    // --- 3. CREACIÓN DE ELEMENTOS (CON PRELOADER) ---
+    // --- 3. CREACIÓN DE ELEMENTOS (CON PROGRESO DE CARGA) ---
     function createVideoElements(videos) {
         videos.forEach(videoInfo => {
             const wrapper = document.createElement('div');
@@ -60,6 +60,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const preloader = document.createElement('div');
             preloader.className = 'preloader';
+            preloader.innerHTML = `
+                <div class="spinner"></div>
+                <div class="progress-text">0%</div>
+            `;
 
             const video = document.createElement('video');
             video.src = videoInfo.src;
@@ -68,8 +72,23 @@ document.addEventListener('DOMContentLoaded', () => {
             video.playsInline = true;
             video.preload = 'auto';
 
+            const progressText = preloader.querySelector('.progress-text');
+
+            // Eventos para manejar el preloader
             video.addEventListener('waiting', () => preloader.classList.remove('hidden'));
-            video.addEventListener('canplaythrough', () => preloader.classList.add('hidden'));
+            video.addEventListener('canplay', () => preloader.classList.add('hidden'));
+
+            // Evento para actualizar el progreso de la carga
+            video.addEventListener('progress', () => {
+                if (video.buffered.length > 0) {
+                    const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+                    const duration = video.duration;
+                    if (duration > 0) {
+                        const percentage = Math.floor((bufferedEnd / duration) * 100);
+                        progressText.textContent = `${percentage}%`;
+                    }
+                }
+            });
 
             const overlay = document.createElement('div');
             overlay.className = 'info-overlay';
@@ -100,7 +119,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (entry.isIntersecting) {
                     console.log(`Video ${videoId} está visible. Intentando reproducir.`);
-                    // Solo intentar reproducir si está pausado
                     if (video.paused) {
                         const playPromise = video.play();
                         if (playPromise !== undefined) {
@@ -112,7 +130,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     overlay.classList.add('visible');
                     setTimeout(() => overlay.classList.remove('visible'), 3000);
                 } else {
-                    // console.log(`Video ${videoId} ya no es visible. Pausando.`);
                     video.pause();
                     video.currentTime = 0;
                 }
