@@ -2,6 +2,7 @@
 
 
 
+
 document.addEventListener('DOMContentLoaded', () => {
     const videoContainer = document.getElementById('video-container');
     const startOverlay = document.getElementById('start-overlay');
@@ -22,15 +23,12 @@ document.addEventListener('DOMContentLoaded', () => {
             videosData = await response.json();
             createVideoElements(videosData);
 
-            // ¡LA SOLUCIÓN DEFINITIVA! Esperar al siguiente frame de renderizado.
             requestAnimationFrame(() => {
                 console.log("Frame de animación listo. Configurando observador y cargando primer video.");
-                // Forzar la carga del primer video manualmente.
                 const firstWrapper = document.querySelector('.video-wrapper');
                 if (firstWrapper) {
                     loadVideo(firstWrapper);
                 }
-                // Ahora, configurar el observador para el resto.
                 setupIntersectionObserver();
             });
 
@@ -53,7 +51,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const playFallback = document.createElement('div');
             playFallback.className = 'play-fallback';
             playFallback.innerHTML = `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
-            playFallback.addEventListener('click', () => { video.play(); playFallback.classList.remove('visible'); });
+            playFallback.addEventListener('click', () => {
+                video.play();
+                playFallback.classList.remove('visible');
+            });
             const speedControls = document.createElement('div');
             speedControls.className = 'speed-controls';
             [0.5, 0.75].forEach(speed => {
@@ -81,8 +82,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!src || wrapper.classList.contains('loaded') || wrapper.classList.contains('loading')) return;
         wrapper.classList.add('loading');
         console.log(`Iniciando carga para: ${src}`);
+
+        // Adjuntar el listener de canplay ANTES de asignar el src
+        const handleCanPlay = () => {
+            console.log(`Video ${src} canplay event fired.`);
+            wrapper.classList.add('loaded');
+            wrapper.classList.remove('loading');
+            video.removeEventListener('canplay', handleCanPlay); // Limpiar el listener
+        };
+        video.addEventListener('canplay', handleCanPlay, { once: true });
+
         try {
-            const cache = await caches.open('video-cache-v2'); // ¡NUEVO NOMBRE DE CACHÉ!
+            const cache = await caches.open('video-cache-v2');
             let response = await cache.match(src);
             if (!response) {
                 console.log(`Cache miss para ${src}. Descargando de la red...`);
@@ -93,10 +104,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const blob = await response.blob();
             video.src = URL.createObjectURL(blob);
-            video.addEventListener('canplay', () => {
-                wrapper.classList.add('loaded');
-                wrapper.classList.remove('loading');
-            }, { once: true });
+            video.load(); // Forzar la carga del video
+
         } catch (error) {
             console.error("Error al cargar video:", error);
             wrapper.classList.remove('loading');
@@ -118,12 +127,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             await video.play();
                             playFallback.classList.remove('visible');
                         } catch (err) {
+                            console.warn(`Autoplay bloqueado para ${video.src}. Mostrando botón de fallback.`, err);
                             playFallback.classList.add('visible');
                         }
                     };
+                    // Asegurarse de que el video esté cargado antes de intentar reproducir
                     if (wrapper.classList.contains('loaded')) {
                         playVideo();
                     } else {
+                        // Si no está cargado, esperar al evento canplay
                         video.addEventListener('canplay', playVideo, { once: true });
                     }
                     wrapper.querySelector('.info-overlay').classList.add('visible');
@@ -189,6 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
 
 
 
