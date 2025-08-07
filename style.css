@@ -23,6 +23,9 @@ html, body {
     scroll-snap-align: start; /* Cada video es un punto de anclaje */
     overflow: hidden;
     cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .video-wrapper video {
@@ -30,6 +33,7 @@ html, body {
     height: 100%;
     object-fit: contain; /* Mantiene la relación de aspecto, como en TikTok */
     transition: transform 0.1s ease-out; /* Suaviza la transición del zoom */
+    z-index: 10;
 }
 
 .info-overlay {
@@ -44,6 +48,7 @@ html, body {
     pointer-events: none; /* Permite hacer clic a través del overlay */
     opacity: 0;
     transition: opacity 0.5s ease-in-out;
+    z-index: 30;
 }
 
 .info-overlay.visible {
@@ -66,8 +71,6 @@ html, body {
 .info-box .title {
     font-size: 1.2rem;
 }
-
-/* --- Nuevos Estilos --- */
 
 #start-overlay {
     position: fixed;
@@ -115,4 +118,26 @@ html, body {
 #fullscreen-btn svg {
     width: 24px;
     height: 24px;
+}
+
+/* --- Estilos del Preloader --- */
+.preloader {
+    position: absolute;
+    z-index: 20;
+    width: 60px;
+    height: 60px;
+    border: 6px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.preloader.hidden {
+    opacity: 0;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }

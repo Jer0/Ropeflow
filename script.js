@@ -4,52 +4,72 @@ document.addEventListener('DOMContentLoaded', () => {
     const startOverlay = document.getElementById('start-overlay');
     const fullscreenBtn = document.getElementById('fullscreen-btn');
     let videosData = [];
-    let hasInteracted = false; // Flag para controlar la interacción inicial del usuario
+    let hasInteracted = false;
 
     // --- 1. REGISTRAR SERVICE WORKER ---
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js')
-            .then(reg => console.log('Service Worker registrado con éxito', reg))
+        navigator.serviceWorker.register('sw.js') // Ruta correcta para GitHub Pages
+            .then(reg => console.log('Service Worker registrado', reg))
             .catch(err => console.error('Error al registrar Service Worker', err));
     }
 
-    // --- 2. LÓGICA DE INICIO ---
-    function initApp() {
-        if (hasInteracted) return; // Evitar múltiples inicializaciones
+    // --- 2. LÓGICA DE INICIO MEJORADA PARA IOS ---
+    async function initApp() {
+        if (hasInteracted) return;
         hasInteracted = true;
 
-        // Ocultar el overlay
         startOverlay.style.opacity = '0';
         setTimeout(() => startOverlay.style.display = 'none', 500);
 
-        // Cargar y crear los videos
-        fetch('videos.json')
-            .then(response => response.json())
-            .then(data => {
-                videosData = data;
-                createVideoElements(videosData);
-                setupIntersectionObserver();
-                // Forzar la reproducción del primer video visible
-                const firstVideo = videoContainer.querySelector('video');
-                if(firstVideo) firstVideo.play().catch(e => console.log("Autoplay bloqueado"));
-            })
-            .catch(error => console.error('Error al cargar videos.json:', error));
+        try {
+            const response = await fetch('videos.json');
+            videosData = await response.json();
+            createVideoElements(videosData);
+            setupIntersectionObserver();
+
+            // **Solución para iOS**: "Desbloquear" todos los videos
+            const videoElements = document.querySelectorAll('video');
+            videoElements.forEach(video => {
+                const promise = video.play();
+                if (promise !== undefined) {
+                    promise.then(() => video.pause())
+                           .catch(e => console.warn("No se pudo pre-desbloquear un video. Esto es normal en algunas condiciones."));
+                }
+            });
+            
+            // Forzar la reproducción del primer video visible después del desbloqueo
+            const firstVideoWrapper = videoContainer.querySelector('.video-wrapper');
+            if (firstVideoWrapper) {
+                const firstVideo = firstVideoWrapper.querySelector('video');
+                firstVideo.play().catch(e => console.log("Autoplay del primer video bloqueado, el usuario debe hacer scroll."));
+            }
+
+        } catch (error) {
+            console.error('Error al cargar videos.json:', error);
+        }
     }
 
     startOverlay.addEventListener('click', initApp);
 
-    // --- 3. CREACIÓN DE ELEMENTOS DE VIDEO ---
+    // --- 3. CREACIÓN DE ELEMENTOS (CON PRELOADER) ---
     function createVideoElements(videos) {
         videos.forEach(videoInfo => {
             const wrapper = document.createElement('div');
             wrapper.className = 'video-wrapper';
             wrapper.dataset.videoId = videoInfo.id;
 
+            const preloader = document.createElement('div');
+            preloader.className = 'preloader';
+
             const video = document.createElement('video');
             video.src = videoInfo.src;
             video.loop = true;
             video.muted = true;
             video.playsInline = true;
+            video.preload = 'auto';
+
+            video.addEventListener('waiting', () => preloader.classList.remove('hidden'));
+            video.addEventListener('canplaythrough', () => preloader.classList.add('hidden'));
 
             const overlay = document.createElement('div');
             overlay.className = 'info-overlay';
@@ -59,7 +79,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="title">${videoInfo.title}</div>
                 </div>
             `;
-
+            
+            wrapper.appendChild(preloader);
             wrapper.appendChild(video);
             wrapper.appendChild(overlay);
             videoContainer.appendChild(wrapper);
@@ -68,18 +89,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 4. OBSERVADOR PARA AUTOPLAY Y MOSTRAR INFO ---
+    // --- 4. OBSERVADOR ---
     function setupIntersectionObserver() {
         const options = { threshold: 0.5 };
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
-                if (!hasInteracted) return; // No hacer nada si el usuario no ha interactuado
-
+                if (!hasInteracted) return;
                 const video = entry.target.querySelector('video');
                 const overlay = entry.target.querySelector('.info-overlay');
-
                 if (entry.isIntersecting) {
-                    video.play().catch(e => console.log("Autoplay falló tras interacción"));
+                    video.play().catch(e => {});
                     overlay.classList.add('visible');
                     setTimeout(() => overlay.classList.remove('visible'), 3000);
                 } else {
@@ -88,13 +107,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }, options);
-
-        document.querySelectorAll('.video-wrapper').forEach(wrapper => {
-            observer.observe(wrapper);
-        });
+        document.querySelectorAll('.video-wrapper').forEach(wrapper => observer.observe(wrapper));
     }
 
-    // --- 5. LÓGICA DE ZOOM Y PANEO (sin cambios) ---
+    // --- 5. ZOOM Y PANEO ---
     function setupZoomAndPan(container, video) {
         let scale = 1, isPanning = false, start = { x: 0, y: 0 }, transform = { x: 0, y: 0 };
         const setTransform = () => { video.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${scale})`; };
@@ -118,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('mouseup', () => { isPanning = false; container.style.cursor = 'grab'; });
     }
 
-    // --- 6. LÓGICA DE PANTALLA COMPLETA ---
+    // --- 6. PANTALLA COMPLETA ---
     fullscreenBtn.addEventListener('click', () => {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(err => console.error(err));
