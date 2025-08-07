@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return el;
     }
 
-    // --- 4. LÓGICA DE CARGA Y CACHÉ (sin cambios) ---
+    // --- 4. LÓGICA DE CARGA Y CACHÉ (CON CACHÉ VERSIONADA) ---
     async function loadVideo(wrapper) {
         const video = wrapper.querySelector('video');
         const src = wrapper.dataset.src;
@@ -82,9 +82,10 @@ document.addEventListener('DOMContentLoaded', () => {
         wrapper.classList.add('loading');
         console.log(`Iniciando carga para: ${src}`);
         try {
-            const cache = await caches.open('video-cache');
+            const cache = await caches.open('video-cache-v2'); // ¡NUEVO NOMBRE DE CACHÉ!
             let response = await cache.match(src);
             if (!response) {
+                console.log(`Cache miss para ${src}. Descargando de la red...`);
                 const res = await fetch(src);
                 if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
                 await cache.put(src, res.clone());
