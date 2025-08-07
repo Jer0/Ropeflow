@@ -1,23 +1,21 @@
 
+
 document.addEventListener('DOMContentLoaded', () => {
     const videoContainer = document.getElementById('video-container');
     const startOverlay = document.getElementById('start-overlay');
     const fullscreenBtn = document.getElementById('fullscreen-btn');
     let videosData = [];
-    let hasInteracted = false;
+    const videoCache = {}; // Caché en memoria para blobs de video
 
     // --- 1. REGISTRAR SERVICE WORKER ---
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js')
-            .then(reg => console.log('Service Worker registrado', reg))
+            .then(reg => console.log('Service Worker v3 registrado', reg))
             .catch(err => console.error('Error al registrar Service Worker', err));
     }
 
     // --- 2. LÓGICA DE INICIO ---
     async function initApp() {
-        if (hasInteracted) return;
-        hasInteracted = true;
-
         startOverlay.style.opacity = '0';
         setTimeout(() => startOverlay.style.display = 'none', 500);
 
@@ -31,97 +29,132 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    startOverlay.addEventListener('click', initApp);
+    startOverlay.addEventListener('click', initApp, { once: true });
 
-    // --- 3. CREACIÓN DE ELEMENTOS (PREPARADO PARA LAZY LOADING) ---
+    // --- 3. CREACIÓN DE ELEMENTOS (SIN SRC) ---
     function createVideoElements(videos) {
         videos.forEach(videoInfo => {
             const wrapper = document.createElement('div');
             wrapper.className = 'video-wrapper';
             wrapper.dataset.videoId = videoInfo.id;
+            wrapper.dataset.src = videoInfo.src; // Guardamos la URL original aquí
 
             const preloader = document.createElement('div');
             preloader.className = 'preloader';
             preloader.innerHTML = `<div class="spinner"></div><div class="progress-text">0%</div>`;
 
             const video = document.createElement('video');
-            // NO establecemos el src aquí. Lo guardamos en un data-attribute.
-            video.dataset.src = videoInfo.src;
             video.loop = true;
             video.muted = true;
             video.playsInline = true;
-            video.preload = 'metadata'; // Solo cargar metadatos al principio
-
-            const progressText = preloader.querySelector('.progress-text');
-
-            video.addEventListener('waiting', () => preloader.classList.remove('hidden'));
-            video.addEventListener('canplay', () => preloader.classList.add('hidden'));
-            video.addEventListener('progress', () => {
-                if (video.buffered.length > 0 && video.duration) {
-                    const bufferedEnd = video.buffered.end(video.buffered.length - 1);
-                    const percentage = Math.floor((bufferedEnd / video.duration) * 100);
-                    progressText.textContent = `${percentage}%`;
-                }
-            });
-
-            const overlay = document.createElement('div');
-            overlay.className = 'info-overlay';
-            overlay.innerHTML = `<div class="info-box"><div class="number">${videoInfo.number}</div><div class="title">${videoInfo.title}</div></div>`;
+            video.preload = 'none'; // No cargar nada al principio
             
             wrapper.appendChild(preloader);
             wrapper.appendChild(video);
-            wrapper.appendChild(overlay);
+            wrapper.appendChild(overlay(videoInfo));
             videoContainer.appendChild(wrapper);
-
             setupZoomAndPan(wrapper, video);
         });
     }
+    
+    function overlay(info) {
+        const el = document.createElement('div');
+        el.className = 'info-overlay';
+        el.innerHTML = `<div class="info-box"><div class="number">${info.number}</div><div class="title">${info.title}</div></div>`;
+        return el;
+    }
 
-    // --- 4. OBSERVADOR CON LÓGICA DE LAZY LOADING ---
-    function setupIntersectionObserver() {
-        const options = { rootMargin: '200px 0px' }; // Empezar a cargar antes de que sea visible
+    // --- 4. LÓGICA DE CARGA Y CACHÉ DE VIDEOS ---
+    async function loadVideo(wrapper) {
+        const video = wrapper.querySelector('video');
+        const src = wrapper.dataset.src;
+        if (!src || video.src) return; // Ya cargado o sin fuente
 
-        const loadVideo = (el) => {
-            const video = el.querySelector('video');
-            if (video && video.dataset.src && !video.src) {
-                console.log(`Cargando video: ${video.dataset.src}`)
-                video.src = video.dataset.src;
-                video.load(); // Iniciar la carga del video
+        const preloader = wrapper.querySelector('.preloader');
+        const progressText = wrapper.querySelector('.progress-text');
+        preloader.classList.remove('hidden');
+
+        try {
+            // 1. Buscar en la caché de la Cache API
+            const cache = await caches.open('video-cache');
+            let response = await cache.match(src);
+
+            if (response) {
+                progressText.textContent = '100%';
+            } else {
+                // 2. Si no está, descargar con progreso
+                console.log(`Descargando video: ${src}`);
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', src, true);
+                xhr.responseType = 'arraybuffer';
+
+                xhr.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        const percentage = Math.floor((event.loaded / event.total) * 100);
+                        progressText.textContent = `${percentage}%`;
+                    }
+                };
+
+                xhr.onload = async () => {
+                    if (xhr.status === 200) {
+                        const videoData = new Blob([xhr.response]);
+                        response = new Response(videoData, { headers: { 'Content-Type': 'video/mp4' } });
+                        await cache.put(src, response.clone());
+                        setVideoSource(video, response);
+                    } else {
+                        console.error('Error al descargar video');
+                    }
+                };
+                xhr.send();
+                return; // Salir porque la carga es asíncrona
             }
-        };
+            
+            // 3. Asignar la fuente desde la respuesta (cacheada o nueva)
+            setVideoSource(video, response);
 
+        } catch (error) {
+            console.error("Error al cargar o cachear el video:", error);
+            preloader.classList.add('hidden');
+        }
+    }
+
+    async function setVideoSource(video, response) {
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        video.src = blobUrl;
+        video.parentElement.querySelector('.preloader').classList.add('hidden');
+    }
+
+    // --- 5. OBSERVADOR PARA LAZY LOADING ---
+    function setupIntersectionObserver() {
+        const options = { rootMargin: '200px 0px' };
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
-                const videoWrapper = entry.target;
-                const video = videoWrapper.querySelector('video');
-
                 if (entry.isIntersecting) {
-                    // Cargar video actual
-                    loadVideo(videoWrapper);
+                    const wrapper = entry.target;
+                    loadVideo(wrapper);
+                    
+                    const next = wrapper.nextElementSibling;
+                    if (next) loadVideo(next);
+                    const prev = wrapper.previousElementSibling;
+                    if (prev) loadVideo(prev);
 
-                    // Precargar siguiente y anterior
-                    const nextSibling = videoWrapper.nextElementSibling;
-                    if (nextSibling) loadVideo(nextSibling);
-                    const prevSibling = videoWrapper.previousElementSibling;
-                    if (prevSibling) loadVideo(prevSibling);
-
-                    // Reproducir video actual
-                    if (video.paused) {
-                        video.play().catch(e => {});
-                    }
-                    videoWrapper.querySelector('.info-overlay').classList.add('visible');
-                    setTimeout(() => videoWrapper.querySelector('.info-overlay').classList.remove('visible'), 3000);
+                    const video = wrapper.querySelector('video');
+                    if (video.paused && video.src) video.play().catch(e => {});
+                    
+                    const overlay = wrapper.querySelector('.info-overlay');
+                    overlay.classList.add('visible');
+                    setTimeout(() => overlay.classList.remove('visible'), 3000);
                 } else {
+                    const video = entry.target.querySelector('video');
                     video.pause();
-                    video.currentTime = 0;
                 }
             });
         }, options);
-
-        document.querySelectorAll('.video-wrapper').forEach(wrapper => observer.observe(wrapper));
+        document.querySelectorAll('.video-wrapper').forEach(w => observer.observe(w));
     }
 
-    // --- 5. ZOOM Y PANEO (sin cambios) ---
+    // --- 6. ZOOM Y PANEO (sin cambios) ---
     function setupZoomAndPan(container, video) {
         let scale = 1, isPanning = false, start = { x: 0, y: 0 }, transform = { x: 0, y: 0 };
         const setTransform = () => { video.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${scale})`; };
@@ -145,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('mouseup', () => { isPanning = false; container.style.cursor = 'grab'; });
     }
 
-    // --- 6. PANTALLA COMPLETA (sin cambios) ---
+    // --- 7. PANTALLA COMPLETA (sin cambios) ---
     fullscreenBtn.addEventListener('click', () => {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(err => console.error(err));
@@ -154,3 +187,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
