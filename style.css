@@ -174,33 +174,4 @@ html, body {
     margin-left: 5px;
 }
 
-/* --- Estilos para Controles de Velocidad --- */
-.speed-controls {
-    position: absolute;
-    bottom: 20px;
-    left: 20px;
-    z-index: 50;
-    display: flex;
-    gap: 10px;
-}
 
-.speed-btn {
-    background-color: rgba(0, 0, 0, 0.4);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.7);
-    border-radius: 8px;
-    padding: 8px 12px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: bold;
-    transition: background-color 0.2s, color 0.2s;
-}
-
-.speed-btn:hover {
-    background-color: rgba(255, 255, 255, 0.2);
-}
-
-.speed-btn.active {
-    background-color: white;
-    color: black;
-}

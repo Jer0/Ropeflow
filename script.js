@@ -6,7 +6,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const videoContainer = document.getElementById('video-container');
     const startOverlay = document.getElementById('start-overlay');
-    const fullscreenBtn = document.getElementById('fullscreen-btn');
+    
     let videosData = [];
 
     // --- 1. SERVICE WORKER (sin cambios) ---
@@ -55,17 +55,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 video.play();
                 playFallback.classList.remove('visible');
             });
-            const speedControls = document.createElement('div');
-            speedControls.className = 'speed-controls';
-            [0.5, 0.75].forEach(speed => {
-                const btn = document.createElement('button');
-                btn.className = 'speed-btn'; btn.textContent = `${speed}x`; btn.dataset.speed = speed;
-                speedControls.appendChild(btn);
-            });
-            wrapper.appendChild(preloader); wrapper.appendChild(video); wrapper.appendChild(overlay(videoInfo)); wrapper.appendChild(playFallback); wrapper.appendChild(speedControls);
+            wrapper.appendChild(preloader); wrapper.appendChild(video); wrapper.appendChild(overlay(videoInfo)); wrapper.appendChild(playFallback);
             videoContainer.appendChild(wrapper);
             setupZoomAndPan(wrapper, video);
-            setupSpeedControls(wrapper, video);
+            setupVideoSpeedCycling(video);
         });
     }
     function overlay(info) {
@@ -149,22 +142,29 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.video-wrapper').forEach(w => observer.observe(w));
     }
 
-    // --- 6. LÓGICA DE CONTROLES DE VELOCIDAD ---
-    function setupSpeedControls(wrapper, video) {
-        const buttons = wrapper.querySelectorAll('.speed-btn');
-        buttons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const speed = parseFloat(button.dataset.speed);
-                if (button.classList.contains('active')) {
-                    button.classList.remove('active');
-                    video.playbackRate = 1.0;
-                } else {
-                    buttons.forEach(btn => btn.classList.remove('active'));
-                    button.classList.add('active');
-                    video.playbackRate = speed;
+    // --- 6. LÓGICA DE CONTROLES DE VELOCIDAD AL CLICKEAR VIDEO ---
+    function setupVideoSpeedCycling(video) {
+        const speeds = [1.0, 0.75, 0.5]; // Normal, 0.75x, 0.5x
+        let currentSpeedIndex = 0;
+
+        video.addEventListener('click', (e) => {
+            e.stopPropagation(); // Evitar que el clic se propague a otros elementos si los hubiera
+            currentSpeedIndex = (currentSpeedIndex + 1) % speeds.length;
+            video.playbackRate = speeds[currentSpeedIndex];
+
+            // Mostrar un overlay temporal con la velocidad actual
+            const overlay = video.closest('.video-wrapper').querySelector('.info-overlay');
+            const infoBox = overlay.querySelector('.info-box');
+            infoBox.innerHTML = `<div class="title">Velocidad: ${speeds[currentSpeedIndex]}x</div>`;
+            overlay.classList.add('visible');
+            setTimeout(() => {
+                overlay.classList.remove('visible');
+                // Restaurar el contenido original del overlay después de que desaparezca
+                const videoInfo = videosData.find(v => video.closest('.video-wrapper').dataset.src.includes(v.src));
+                if (videoInfo) {
+                    infoBox.innerHTML = `<div class="number">${videoInfo.number}</div><div class="title">${videoInfo.title}</div>`;
                 }
-            });
+            }, 1000); // Mostrar por 1 segundo
         });
     }
 
@@ -192,14 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('mouseup', () => { isPanning = false; container.style.cursor = 'grab'; });
     }
 
-    // --- 8. PANTALLA COMPLETA ---
-    fullscreenBtn.addEventListener('click', () => {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(err => console.error(err));
-        } else {
-            document.exitFullscreen();
-        }
-    });
+    
 });
 
 
