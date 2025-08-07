@@ -1,6 +1,7 @@
 
 
 
+
 document.addEventListener('DOMContentLoaded', () => {
     const videoContainer = document.getElementById('video-container');
     const startOverlay = document.getElementById('start-overlay');
@@ -23,10 +24,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // ¡LA SOLUCIÓN DEFINITIVA! Esperar al siguiente frame de renderizado.
             requestAnimationFrame(() => {
+                console.log("Frame de animación listo. Configurando observador y cargando primer video.");
                 // Forzar la carga del primer video manualmente.
                 const firstWrapper = document.querySelector('.video-wrapper');
                 if (firstWrapper) {
-                    console.log("Cargando manualmente el primer video...");
                     loadVideo(firstWrapper);
                 }
                 // Ahora, configurar el observador para el resto.
@@ -79,6 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const src = wrapper.dataset.src;
         if (!src || wrapper.classList.contains('loaded') || wrapper.classList.contains('loading')) return;
         wrapper.classList.add('loading');
+        console.log(`Iniciando carga para: ${src}`);
         try {
             const cache = await caches.open('video-cache');
             let response = await cache.match(src);
@@ -100,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 5. OBSERVADOR (CON LÓGICA DE REPRODUCCIÓN MEJORADA) ---
+    // --- 5. OBSERVADOR (sin cambios) ---
     function setupIntersectionObserver() {
         const options = { threshold: 0.5 };
         const observer = new IntersectionObserver((entries) => {
@@ -186,5 +188,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
 
 
