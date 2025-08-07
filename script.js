@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(err => console.error('Error al registrar Service Worker', err));
     }
 
-    // --- 2. LÓGICA DE INICIO MEJORADA PARA IOS ---
+    // --- 2. LÓGICA DE INICIO ---
     async function initApp() {
         if (hasInteracted) return;
         hasInteracted = true;
@@ -26,24 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
             videosData = await response.json();
             createVideoElements(videosData);
             setupIntersectionObserver();
-
-            const videoElements = document.querySelectorAll('video');
-            console.log(`Intentando desbloquear ${videoElements.length} videos para iOS.`);
-            videoElements.forEach(video => {
-                const promise = video.play();
-                if (promise !== undefined) {
-                    promise.then(() => video.pause())
-                           .catch(e => console.warn("No se pudo pre-desbloquear un video."));
-                }
-            });
-            
-            const firstVideoWrapper = videoContainer.querySelector('.video-wrapper');
-            if (firstVideoWrapper) {
-                const firstVideo = firstVideoWrapper.querySelector('video');
-                console.log("Intentando reproducir el primer video.");
-                firstVideo.play().catch(e => console.log("Autoplay del primer video bloqueado."));
-            }
-
         } catch (error) {
             console.error('Error al cargar videos.json:', error);
         }
@@ -51,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     startOverlay.addEventListener('click', initApp);
 
-    // --- 3. CREACIÓN DE ELEMENTOS (CON PROGRESO DE CARGA) ---
+    // --- 3. CREACIÓN DE ELEMENTOS (PREPARADO PARA LAZY LOADING) ---
     function createVideoElements(videos) {
         videos.forEach(videoInfo => {
             const wrapper = document.createElement('div');
@@ -60,44 +42,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const preloader = document.createElement('div');
             preloader.className = 'preloader';
-            preloader.innerHTML = `
-                <div class="spinner"></div>
-                <div class="progress-text">0%</div>
-            `;
+            preloader.innerHTML = `<div class="spinner"></div><div class="progress-text">0%</div>`;
 
             const video = document.createElement('video');
-            video.src = videoInfo.src;
+            // NO establecemos el src aquí. Lo guardamos en un data-attribute.
+            video.dataset.src = videoInfo.src;
             video.loop = true;
             video.muted = true;
             video.playsInline = true;
-            video.preload = 'auto';
+            video.preload = 'metadata'; // Solo cargar metadatos al principio
 
             const progressText = preloader.querySelector('.progress-text');
 
-            // Eventos para manejar el preloader
             video.addEventListener('waiting', () => preloader.classList.remove('hidden'));
             video.addEventListener('canplay', () => preloader.classList.add('hidden'));
-
-            // Evento para actualizar el progreso de la carga
             video.addEventListener('progress', () => {
-                if (video.buffered.length > 0) {
+                if (video.buffered.length > 0 && video.duration) {
                     const bufferedEnd = video.buffered.end(video.buffered.length - 1);
-                    const duration = video.duration;
-                    if (duration > 0) {
-                        const percentage = Math.floor((bufferedEnd / duration) * 100);
-                        progressText.textContent = `${percentage}%`;
-                    }
+                    const percentage = Math.floor((bufferedEnd / video.duration) * 100);
+                    progressText.textContent = `${percentage}%`;
                 }
             });
 
             const overlay = document.createElement('div');
             overlay.className = 'info-overlay';
-            overlay.innerHTML = `
-                <div class="info-box">
-                    <div class="number">${videoInfo.number}</div>
-                    <div class="title">${videoInfo.title}</div>
-                </div>
-            `;
+            overlay.innerHTML = `<div class="info-box"><div class="number">${videoInfo.number}</div><div class="title">${videoInfo.title}</div></div>`;
             
             wrapper.appendChild(preloader);
             wrapper.appendChild(video);
@@ -108,37 +77,51 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 4. OBSERVADOR MEJORADO ---
+    // --- 4. OBSERVADOR CON LÓGICA DE LAZY LOADING ---
     function setupIntersectionObserver() {
-        const options = { threshold: 0.5 };
+        const options = { rootMargin: '200px 0px' }; // Empezar a cargar antes de que sea visible
+
+        const loadVideo = (el) => {
+            const video = el.querySelector('video');
+            if (video && video.dataset.src && !video.src) {
+                console.log(`Cargando video: ${video.dataset.src}`)
+                video.src = video.dataset.src;
+                video.load(); // Iniciar la carga del video
+            }
+        };
+
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
-                const video = entry.target.querySelector('video');
-                const overlay = entry.target.querySelector('.info-overlay');
-                const videoId = entry.target.dataset.videoId;
+                const videoWrapper = entry.target;
+                const video = videoWrapper.querySelector('video');
 
                 if (entry.isIntersecting) {
-                    console.log(`Video ${videoId} está visible. Intentando reproducir.`);
+                    // Cargar video actual
+                    loadVideo(videoWrapper);
+
+                    // Precargar siguiente y anterior
+                    const nextSibling = videoWrapper.nextElementSibling;
+                    if (nextSibling) loadVideo(nextSibling);
+                    const prevSibling = videoWrapper.previousElementSibling;
+                    if (prevSibling) loadVideo(prevSibling);
+
+                    // Reproducir video actual
                     if (video.paused) {
-                        const playPromise = video.play();
-                        if (playPromise !== undefined) {
-                            playPromise.catch(error => {
-                                console.error(`Error al reproducir video ${videoId}:`, error);
-                            });
-                        }
+                        video.play().catch(e => {});
                     }
-                    overlay.classList.add('visible');
-                    setTimeout(() => overlay.classList.remove('visible'), 3000);
+                    videoWrapper.querySelector('.info-overlay').classList.add('visible');
+                    setTimeout(() => videoWrapper.querySelector('.info-overlay').classList.remove('visible'), 3000);
                 } else {
                     video.pause();
                     video.currentTime = 0;
                 }
             });
         }, options);
+
         document.querySelectorAll('.video-wrapper').forEach(wrapper => observer.observe(wrapper));
     }
 
-    // --- 5. ZOOM Y PANEO ---
+    // --- 5. ZOOM Y PANEO (sin cambios) ---
     function setupZoomAndPan(container, video) {
         let scale = 1, isPanning = false, start = { x: 0, y: 0 }, transform = { x: 0, y: 0 };
         const setTransform = () => { video.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${scale})`; };
@@ -162,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('mouseup', () => { isPanning = false; container.style.cursor = 'grab'; });
     }
 
-    // --- 6. PANTALLA COMPLETA ---
+    // --- 6. PANTALLA COMPLETA (sin cambios) ---
     fullscreenBtn.addEventListener('click', () => {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(err => console.error(err));
