@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.serviceWorker.register('sw.js').catch(err => console.error('SW reg failed', err));
     }
 
-    // --- 2. LÓGICA DE INICIO (sin cambios) ---
+    // --- 2. LÓGICA DE INICIO (CON SINCRONIZACIÓN) ---
     async function initApp() {
         startOverlay.style.opacity = '0';
         setTimeout(() => startOverlay.style.display = 'none', 500);
@@ -19,7 +19,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('videos.json');
             videosData = await response.json();
             createVideoElements(videosData);
-            setupIntersectionObserver();
+            
+            // ¡SOLUCIÓN! Esperar al siguiente frame de renderizado para asegurar que los elementos existen.
+            requestAnimationFrame(() => {
+                setupIntersectionObserver();
+            });
+
         } catch (error) {
             console.error('Error al cargar videos.json:', error);
         }
