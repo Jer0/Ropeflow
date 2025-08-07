@@ -144,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 6. LÓGICA DE CONTROLES DE VELOCIDAD AL CLICKEAR VIDEO ---
     function setupVideoSpeedCycling(video) {
-        const speeds = [1.0, 0.75, 0.5]; // Normal, 0.75x, 0.5x
+        const speeds = [1.0, 0.75, 0.5, 0.25]; // Normal, 0.75x, 0.5x, 0.25x
         let currentSpeedIndex = 0;
 
         video.addEventListener('click', (e) => {
