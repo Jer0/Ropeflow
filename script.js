@@ -1,5 +1,6 @@
 
 
+
 document.addEventListener('DOMContentLoaded', () => {
     const videoContainer = document.getElementById('video-container');
     const startOverlay = document.getElementById('start-overlay');
@@ -11,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.serviceWorker.register('sw.js').catch(err => console.error('SW reg failed', err));
     }
 
-    // --- 2. LÓGICA DE INICIO (CON SINCRONIZACIÓN) ---
+    // --- 2. LÓGICA DE INICIO (CON SINCRONIZACIÓN GARANTIZADA) ---
     async function initApp() {
         startOverlay.style.opacity = '0';
         setTimeout(() => startOverlay.style.display = 'none', 500);
@@ -20,10 +21,10 @@ document.addEventListener('DOMContentLoaded', () => {
             videosData = await response.json();
             createVideoElements(videosData);
             
-            // ¡SOLUCIÓN! Esperar al siguiente frame de renderizado para asegurar que los elementos existen.
-            requestAnimationFrame(() => {
+            // ¡LA SOLUCIÓN! Deferir la configuración del observador hasta que el DOM esté listo.
+            setTimeout(() => {
                 setupIntersectionObserver();
-            });
+            }, 0);
 
         } catch (error) {
             console.error('Error al cargar videos.json:', error);
@@ -115,6 +116,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 5. OBSERVADOR (sin cambios) ---
     function setupIntersectionObserver() {
+        console.log("Configurando IntersectionObserver...");
+        const wrappers = document.querySelectorAll('.video-wrapper');
+        console.log(`Encontrados ${wrappers.length} wrappers para observar.`);
+
         const options = { threshold: 0.5 };
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(async entry => {
@@ -141,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }, options);
-        document.querySelectorAll('.video-wrapper').forEach(w => observer.observe(w));
+        wrappers.forEach(w => observer.observe(w));
     }
 
     // --- NUEVA FUNCIÓN: Lógica de Controles de Velocidad ---
@@ -199,4 +204,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
 
