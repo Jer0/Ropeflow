@@ -32,12 +32,10 @@ html, body {
     height: 100%;
     object-fit: contain;
     z-index: 10;
-    /* El video empieza invisible y aparecerá suavemente */
     opacity: 0;
     transition: opacity 0.4s ease-in-out;
 }
 
-/* Cuando el wrapper tiene la clase .loaded, el video se hace visible */
 .video-wrapper.loaded video {
     opacity: 1;
 }
@@ -126,7 +124,6 @@ html, body {
     height: 24px;
 }
 
-/* --- Estilos del Preloader Simplificado --- */
 .preloader {
     position: absolute;
     z-index: 20;
@@ -140,7 +137,6 @@ html, body {
     animation: spin 1s linear infinite;
 }
 
-/* Cuando el wrapper tiene .loaded, el preloader desaparece */
 .video-wrapper.loaded .preloader {
     opacity: 0;
 }
@@ -149,7 +145,6 @@ html, body {
     to { transform: rotate(360deg); }
 }
 
-/* --- Estilos del Botón de Play Fallback --- */
 .play-fallback {
     position: absolute;
     z-index: 40;
@@ -177,4 +172,35 @@ html, body {
     height: 40px;
     fill: white;
     margin-left: 5px;
+}
+
+/* --- Estilos para Controles de Velocidad --- */
+.speed-controls {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    z-index: 50;
+    display: flex;
+    gap: 10px;
+}
+
+.speed-btn {
+    background-color: rgba(0, 0, 0, 0.4);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.speed-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.speed-btn.active {
+    background-color: white;
+    color: black;
 }

@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     startOverlay.addEventListener('click', initApp, { once: true });
 
-    // --- 3. CREACIÓN DE ELEMENTOS (Simplificado) ---
+    // --- 3. CREACIÓN DE ELEMENTOS (CON CONTROLES DE VELOCIDAD) ---
     function createVideoElements(videos) {
         videos.forEach(videoInfo => {
             const wrapper = document.createElement('div');
@@ -50,12 +50,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 playFallback.classList.remove('visible');
             });
 
+            // Crear controles de velocidad
+            const speedControls = document.createElement('div');
+            speedControls.className = 'speed-controls';
+            const speeds = [0.5, 0.75];
+            speeds.forEach(speed => {
+                const btn = document.createElement('button');
+                btn.className = 'speed-btn';
+                btn.textContent = `${speed}x`;
+                btn.dataset.speed = speed;
+                speedControls.appendChild(btn);
+            });
+
             wrapper.appendChild(preloader);
             wrapper.appendChild(video);
             wrapper.appendChild(overlay(videoInfo));
             wrapper.appendChild(playFallback);
+            wrapper.appendChild(speedControls); // Añadir controles al wrapper
             videoContainer.appendChild(wrapper);
+
             setupZoomAndPan(wrapper, video);
+            setupSpeedControls(wrapper, video);
         });
     }
     
@@ -66,41 +81,34 @@ document.addEventListener('DOMContentLoaded', () => {
         return el;
     }
 
-    // --- 4. LÓGICA DE CARGA Y CACHÉ (Simplificada) ---
+    // --- 4. LÓGICA DE CARGA Y CACHÉ (sin cambios) ---
     async function loadVideo(wrapper) {
         const video = wrapper.querySelector('video');
         const src = wrapper.dataset.src;
         if (!src || wrapper.classList.contains('loaded') || wrapper.classList.contains('loading')) return;
-
         wrapper.classList.add('loading');
-
         try {
             const cache = await caches.open('video-cache');
             let response = await cache.match(src);
-
             if (!response) {
                 const res = await fetch(src);
                 if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
                 await cache.put(src, res.clone());
                 response = res;
             }
-            
             const blob = await response.blob();
             video.src = URL.createObjectURL(blob);
-            
-            // Esperar a que el video esté listo para reproducir
             video.addEventListener('canplay', () => {
                 wrapper.classList.add('loaded');
                 wrapper.classList.remove('loading');
             }, { once: true });
-
         } catch (error) {
             console.error("Error al cargar video:", error);
             wrapper.classList.remove('loading');
         }
     }
 
-    // --- 5. OBSERVADOR CON LÓGICA SINCRONIZADA ---
+    // --- 5. OBSERVADOR (sin cambios) ---
     function setupIntersectionObserver() {
         const options = { threshold: 0.5 };
         const observer = new IntersectionObserver((entries) => {
@@ -108,10 +116,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const wrapper = entry.target;
                 const video = wrapper.querySelector('video');
                 const playFallback = wrapper.querySelector('.play-fallback');
-
                 if (entry.isIntersecting) {
                     await loadVideo(wrapper);
-                    
                     const playVideo = async () => {
                         try {
                             await video.play();
@@ -120,13 +126,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             playFallback.classList.add('visible');
                         }
                     };
-
-                    if (wrapper.classList.contains('loaded')) {
-                        playVideo();
-                    } else {
-                        video.addEventListener('canplay', playVideo, { once: true });
-                    }
-                    
+                    if (wrapper.classList.contains('loaded')) playVideo();
+                    else video.addEventListener('canplay', playVideo, { once: true });
                     wrapper.querySelector('.info-overlay').classList.add('visible');
                     setTimeout(() => wrapper.querySelector('.info-overlay').classList.remove('visible'), 3000);
                 } else {
@@ -138,7 +139,29 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.video-wrapper').forEach(w => observer.observe(w));
     }
 
-    // --- 6. ZOOM Y PANEO (sin cambios) ---
+    // --- NUEVA FUNCIÓN: Lógica de Controles de Velocidad ---
+    function setupSpeedControls(wrapper, video) {
+        const buttons = wrapper.querySelectorAll('.speed-btn');
+        buttons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.stopPropagation(); // Evitar que el clic se propague al wrapper
+                const speed = parseFloat(button.dataset.speed);
+
+                // Si el botón ya está activo, desactivarlo
+                if (button.classList.contains('active')) {
+                    button.classList.remove('active');
+                    video.playbackRate = 1.0;
+                } else {
+                    // Desactivar otros botones y activar este
+                    buttons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    video.playbackRate = speed;
+                }
+            });
+        });
+    }
+
+    // --- ZOOM Y PANEO (sin cambios) ---
     function setupZoomAndPan(container, video) {
         let scale = 1, isPanning = false, start = { x: 0, y: 0 }, transform = { x: 0, y: 0 };
         const setTransform = () => { video.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${scale})`; };
@@ -162,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('mouseup', () => { isPanning = false; container.style.cursor = 'grab'; });
     }
 
-    // --- 7. PANTALLA COMPLETA (sin cambios) ---
+    // --- PANTALLA COMPLETA (sin cambios) ---
     fullscreenBtn.addEventListener('click', () => {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(err => console.error(err));
